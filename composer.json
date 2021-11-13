@@ -4,5 +4,8 @@
     "require": {
         "php": ">=7.4",
         "symfony/console": "^5.3"
-    }
+    },
+    "bin": [
+        "bin/dcore"
+    ]
 }
