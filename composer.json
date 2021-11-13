@@ -1,0 +1,8 @@
+{
+    "name": "so-ali/dcore-installer",
+    "description": "Devingo wordpress template core installer.",
+    "require": {
+        "php": ">=7.4",
+        "symfony/console": "^5.3"
+    }
+}
