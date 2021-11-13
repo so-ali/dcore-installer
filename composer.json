@@ -2,7 +2,7 @@
     "name": "so-ali/dcore-installer",
     "description": "Devingo wordpress template core installer.",
     "require": {
-        "php": ">=7.4",
+        "php": "^7.3|^8.0",
         "symfony/console": "^5.3"
     },
     "autoload": {
@@ -10,6 +10,7 @@
             "Devingo\\Installer\\Console\\": "includes/"
         }
     },
+    "minimum-stability": "dev",
     "bin": [
         "bin/dcore"
     ]
