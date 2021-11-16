@@ -1,6 +1,14 @@
 {
     "name": "so-ali/dcore-installer",
     "description": "Devingo wordpress template core installer.",
+    "keywords": ["devingo","dcore","devingo-core"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "So Ali",
+            "email": "ir.alisoleymani@gmail.com"
+        }
+    ],
     "require": {
         "php": "^7.3|^8.0",
         "symfony/console": "^5.3"
@@ -15,10 +23,5 @@
     },
     "bin": [
         "bin/dcore"
-    ],
-    "config": {
-        "sort-packages": true
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    ]
 }
