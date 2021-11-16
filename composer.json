@@ -23,5 +23,8 @@
     },
     "bin": [
         "bin/dcore"
-    ]
+    ],
+    "config": {
+        "sort-packages": true
+    }
 }
