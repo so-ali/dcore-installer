@@ -19,6 +19,7 @@ class Transfers {
 			$fileSystem->copy($from, $to, $replace);
 		}
 	}
+
 	/**
 	 * remove files
 	 *
@@ -40,7 +41,32 @@ class Transfers {
 	public static function rename (array $files, bool $replace = false) {
 		$fileSystem = new Filesystem();
 		foreach ( $files as $file => $name ) {
-			$fileSystem->rename($file,$name,$replace);
+			$fileSystem->rename($file, $name, $replace);
 		}
+	}
+
+	public static function smartFileCopy (string $from, string $to, string $toMainDir = '') {
+		if ( empty($toMainDir) ) {
+			$toMainDir = getcwd();
+		}
+
+		$toDirectories = explode('/', str_replace(['/', '\\'], '/', str_replace($toMainDir, '', $to)));
+
+		$filesystem = new Filesystem();
+
+		if ( isset($toDirectories[count($toDirectories) - 1]) ) {
+			unset($toDirectories[count($toDirectories) - 1]);
+		}
+
+		if ( !empty($toDirectories) ) {
+			$folder = '';
+			foreach ( $toDirectories as $directory ) {
+				$folder .= $directory . DIRECTORY_SEPARATOR;
+				if ( !$filesystem->exists($folder) ) {
+					$filesystem->mkdir($folder);
+				}
+			}
+		}
+		self::copy([$from => $to], true);
 	}
 }
