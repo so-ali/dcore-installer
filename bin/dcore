@@ -13,5 +13,6 @@ $app = new Symfony\Component\Console\Application('Devingo Core Assistant', '1.0.
 $app->add(new Devingo\Installer\Console\Commands\NewCommand);
 $app->add(new Devingo\Installer\Console\Commands\UpdateCoreCommand);
 $app->add(new Devingo\Installer\Console\Commands\CacheCommand());
+$app->add(new Devingo\Installer\Console\Commands\InstallCommand());
 
 $app->run();

@@ -2,8 +2,11 @@
 
 namespace Devingo\Installer\Console\Commands;
 
+use Devingo\Installer\Console\Actions\CoreManager;
+use Devingo\Installer\Console\Actions\ServerManager;
 use Devingo\Installer\Console\Actions\Transfers;
 use Devingo\Installer\Console\Actions\Updater;
+use Devingo\Installer\Console\Log;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -18,8 +21,9 @@ class UpdateCoreCommand extends Command {
 	 */
 	protected function configure () {
 		$this->setName('update')
-		     ->setDescription('Update the devingo core')
-		     ->addArgument('version', InputArgument::OPTIONAL);
+		     ->setDescription('Update toolbox')
+		     ->addArgument('type', InputArgument::REQUIRED)
+		     ->addArgument('value', InputArgument::OPTIONAL);
 	}
 
 	/**
@@ -30,14 +34,57 @@ class UpdateCoreCommand extends Command {
 	 *
 	 * @return int
 	 */
-	protected function execute (InputInterface $input, OutputInterface $output) {
+	protected function execute (InputInterface $input, OutputInterface $output) : int {
+
 		if ( !file_exists(getcwd() . DIRECTORY_SEPARATOR . 'dcore.json') ) {
 			$output->writeln('dcore.json file is not found!');
 			$output->writeln('Please run dcore commands in the project directory.');
+
 			return 0;
 		}
 
 
+		$formatterHelper = $this->getHelper('formatter');
+
+		$updateTypes = [
+			'core',
+			'addon-slug'
+		];
+
+
+		if ( $input->getArgument('type') === 'core' ) {
+			return $this->coreUpdater($input, $output);
+		}
+
+		$installedAddons = CoreManager::getAddonsSlug();
+		if ( $input->getArgument('type') !== 'core' && (empty($input->getArgument('type')) || !in_array($input->getArgument('type'), $installedAddons)) ) {
+			$formattedBlock = $formatterHelper->formatBlock([
+				'Please enter a valid installed addons slug!',
+				'   Installed addons:',
+				'   ' . implode(' ,', $installedAddons)
+			], 'error');
+			$output->writeln($formattedBlock);
+
+			return 1;
+		}
+
+
+		if ( $input->getArgument('type') !== 'core' ) {
+			return $this->addonUpdater($input, $output);
+		}
+
+
+		$formattedBlock = $formatterHelper->formatBlock([
+			'Please enter a valid slug!',
+			'   Valid slugs:',
+			'   ' . implode(' ,', $updateTypes)
+		], 'error');
+		$output->writeln($formattedBlock);
+
+		return 0;
+	}
+
+	private function coreUpdater (InputInterface $input, OutputInterface $output) : int {
 		// Helpers
 		$questionHelper  = $this->getHelper('question');
 		$formatterHelper = $this->getHelper('formatter');
@@ -46,10 +93,11 @@ class UpdateCoreCommand extends Command {
 		$holdQuestion  = new ConfirmationQuestion('Do you want the files that were not replaced to be stored in the "_NeedUpdate" folder? (Y/n) (default:Y) : ', true);
 
 		// Arguments
-		$version = $input->getArgument('version') ?? '';
+		$version = $input->getArgument('value') ?? '';
 
-		// Flight
-		$updater = new Updater();
+
+		$log     = new Log();
+		$updater = new Updater($log);
 
 		$output->writeln('Downloading update package...');
 		$updater->cloneByVersion($version); // empty to get latest version
@@ -123,8 +171,101 @@ class UpdateCoreCommand extends Command {
 			}
 		}
 
+		$newVersion = CoreManager::getCoreVersion(getcwd() . DIRECTORY_SEPARATOR . '.dcore' . DIRECTORY_SEPARATOR . 'dcore' . DIRECTORY_SEPARATOR . 'dcore.json');
+		CoreManager::setCoreVersion($newVersion);
 
 		$output->writeln(PHP_EOL . 'Your template is updated successfully!');
+
+		return 0;
+	}
+
+	private function addonUpdater (InputInterface $input, OutputInterface $output) : int {
+		$formatterHelper = $this->getHelper('formatter');
+		$questionHelper  = $this->getHelper('question');
+
+		$version = $input->getArgument('value') ?? '';
+		$slug    = $input->getArgument('type');
+		$license = CoreManager::getLicense();
+
+		$currentVersion = CoreManager::getAddons();
+		$currentVersion = $currentVersion[$slug];
+
+
+		if ( !empty($version) && version_compare($version, $currentVersion, '<=') ) {
+			$formattedBlock = $formatterHelper->formatBlock([
+				'You can\'t downgrade addons!',
+			], 'error');
+			$output->writeln($formattedBlock);
+
+			return 0;
+		}
+
+
+		if ( empty($license) ) {
+			$formattedBlock = $formatterHelper->formatBlock([
+				'Please install "license" addon from https://license.devingo.net before update any things!',
+			], 'error');
+			$output->writeln($formattedBlock);
+
+			return 0;
+		}
+
+		$serverManager = new ServerManager($slug, $version, $license);
+
+		$addonVersions = $serverManager->getAddonVersions();
+		if ( $addonVersions['status'] === false ) {
+			$formattedBlock = $formatterHelper->formatBlock([
+				$addonVersions['data'],
+			], 'error');
+			$output->writeln($formattedBlock);
+
+			return 0;
+		}
+
+		if ( !is_array($addonVersions['data']) || empty($addonVersions['data']) ) {
+			$formattedBlock = $formatterHelper->formatBlock([
+				'There is not any update for this addon!',
+			], 'error');
+			$output->writeln($formattedBlock);
+
+			return 0;
+		}
+
+		$versions = $addonVersions['data'];
+
+
+		if ( count($versions) === 1 && $versions[0]['version'] === $currentVersion ) {
+			$formattedBlock = $formatterHelper->formatBlock([
+				'Your installed version is already updated!',
+			], 'info');
+			$output->writeln($formattedBlock);
+
+			return 0;
+		}
+
+		$requiredUpdates = array_filter($versions, function ($item) use ($version, $currentVersion) {
+			return version_compare($item['version'], $currentVersion, '>') && version_compare($item['version'], $version, '');
+		});
+
+		if ( count($requiredUpdates) > 1 && !empty($version) ) {
+			$output->writeln(PHP_EOL . 'There are ' . count($requiredUpdates) . ' updates for update to version ' . $version . '!');
+		}
+
+
+		$filesQuestion = new ConfirmationQuestion('Do you want replace file? (Y/n) (default:n) : ', true);
+
+		foreach ( $requiredUpdates as $required_update ) {
+			if ( count($requiredUpdates) > 1 && !$questionHelper->ask($input, $output, $filesQuestion) ) {
+				$output->writeln(PHP_EOL . 'You have skipped the update process!');
+
+				return 0;
+			}
+
+			$nextVersion = $required_update['version'];
+
+			InstallCommand::addonInstaller($this, $input, $output, $slug . '@' . $nextVersion, $license,true);
+		}
+
 
 		return 0;
 	}

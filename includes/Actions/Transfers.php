@@ -69,4 +69,32 @@ class Transfers {
 		}
 		self::copy([$from => $to], true);
 	}
+
+	/**
+	 * @param string $dir
+	 *
+	 * @return array
+	 */
+	public static function getDirectoryAllFiles (string $dir) : array {
+		if ( !file_exists($dir) ) {
+			return [];
+		}
+		$scannedDirectory = array_diff(scandir($dir), ['..', '.']);
+
+		if ( empty($scannedDirectory) ) {
+			return [];
+		}
+
+		$filesPath = [];
+
+		foreach ( $scannedDirectory as $item ) {
+			if ( is_dir($dir . DIRECTORY_SEPARATOR . $item) ) {
+				$filesPath = array_merge($filesPath, self::getDirectoryAllFiles($dir . DIRECTORY_SEPARATOR . $item));
+			} else {
+				$filesPath[] = $dir . DIRECTORY_SEPARATOR . $item;
+			}
+		}
+
+		return $filesPath;
+	}
 }

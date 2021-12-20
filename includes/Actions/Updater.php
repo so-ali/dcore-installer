@@ -4,7 +4,10 @@
 namespace Devingo\Installer\Console\Actions;
 
 
-use Symfony\Component\Filesystem\Filesystem;
+use Devingo\Installer\Console\Log;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
@@ -12,8 +15,15 @@ class Updater {
 	const tempPath = '.dcore';
 	public $tempFullPath     = '';
 	public $updatePackageDir = '';
+	public $log;
 
-	public function __construct () {
+	/**
+	 * Updater constructor.
+	 *
+	 * @param \Devingo\Installer\Console\Log $log
+	 */
+	public function __construct ($log) {
+		$this->log              = $log;
 		$this->tempFullPath     = getcwd() . DIRECTORY_SEPARATOR . self::tempPath;
 		$this->updatePackageDir = $this->tempFullPath . DIRECTORY_SEPARATOR . 'update';
 		if ( !file_exists($this->tempFullPath) ) {
@@ -43,39 +53,23 @@ class Updater {
 			$process->mustRun();
 			echo $process->getOutput();
 		} catch ( ProcessFailedException $exception ) {
-			echo $exception->getMessage();
+			echo PHP_EOL . 'An error occurred while cloning. Please make sure the entered version is correct!' . PHP_EOL;
+			$this->log->addLog('Error on cloning the project (Code: 101)' . PHP_EOL . $exception->getMessage());
+			die();
 		}
-	}
-
-	public function getVersionTags () {
-		$process = new Process(['git', 'tag']);
-		$process->setWorkingDirectory($this->updatePackageDir);
-		try {
-			$process->mustRun();
-			$tagsList = explode("\n", $process->getOutput());
-			if ( isset($tagsList[count($tagsList) - 1]) && empty($tagsList[count($tagsList) - 1]) ) {
-				unset($tagsList[count($tagsList) - 1]);
-			}
-		} catch ( ProcessFailedException $exception ) {
-			$tagsList = [];
-			echo $exception->getMessage();
-		}
-
-		return $tagsList;
-
 	}
 
 	public function getChangesList (string $version = '', string $status = 'replace') {
-		$currentVersion = VersionManager::getCoreVersion();
+		$currentVersion = CoreManager::getCoreVersion();
 		$processArgs    = ['git', 'diff', 'tags/' . $currentVersion];
 		if ( !empty($version) ) {
 			$processArgs[] = 'tags/' . $version;
 		}
 		$processArgs[] = '--name-only';
 
-		if($status === 'removed'){
+		if ( $status === 'removed' ) {
 			$processArgs[] = '--diff-filter=D';
-		}else{
+		} else {
 			$processArgs[] = '--diff-filter=dr';
 		}
 
@@ -86,12 +80,13 @@ class Updater {
 			$changeList = explode("\n", $process->getOutput());
 
 			$changeList = array_filter($changeList, function ($item) {
-				return $item !== 'style.css' && !empty($item);
+				return $item !== 'style.css' && !empty($item) && $item !== 'dcore.json';
 			});
 
 		} catch ( ProcessFailedException $exception ) {
 			$changeList = [];
-			echo $exception->getMessage();
+			echo PHP_EOL . 'Error when getting change list!' . PHP_EOL;
+			$this->log->addLog('Error when getting change list (Code: 102)' . PHP_EOL . PHP_EOL . $exception->getMessage());
 		}
 
 		return $changeList;
@@ -106,4 +101,5 @@ class Updater {
 		$to = str_replace(['/.dcore/update', '\\.dcore\\update'], ['/_NeedUpdate', '\\_NeedUpdate'], $file);
 		Transfers::smartFileCopy($file, $to);
 	}
+
 }
