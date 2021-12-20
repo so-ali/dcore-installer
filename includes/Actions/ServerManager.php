@@ -14,7 +14,7 @@ class ServerManager {
 	private $license;
 
 	public function __construct (string $slug, string $version = '', string $license = '') {
-		$this->serverURL = 'http://127.0.0.1:8000/api/cli/';
+		$this->serverURL = 'https://license.devingo.net/cores/api/cli/';
 		$this->slug      = $slug;
 		$this->version   = $version;
 		$this->license   = $license;
