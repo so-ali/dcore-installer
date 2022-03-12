@@ -97,8 +97,15 @@ class Updater {
 		Transfers::smartFileCopy($file, $to);
 	}
 
-	public function updateHold (string $file) {
-		$to = str_replace(['/.dcore/update', '\\.dcore\\update'], ['/_NeedUpdate', '\\_NeedUpdate'], $file);
+	public function updateHold (string $file,string $search = '/.dcore/update',string $replace = '/_NeedUpdate') {
+		$to = str_replace([
+            $search,
+            str_replace('/','\\',$search)
+        ], [
+            $replace,
+            str_replace('/','\\',$replace)
+        ], $file);
+
 		Transfers::smartFileCopy($file, $to);
 	}
 

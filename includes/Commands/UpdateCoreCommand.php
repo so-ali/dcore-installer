@@ -12,261 +12,307 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
+use Symfony\Component\Process\Exception\ProcessFailedException;
+use Symfony\Component\Process\Process;
+
+class UpdateCoreCommand extends Command
+{
+    /**
+     * Configure the command options.
+     *
+     * @return void
+     */
+    protected function configure()
+    {
+        $this->setName('update')
+            ->setDescription('Update toolbox')
+            ->addArgument('type', InputArgument::REQUIRED)
+            ->addArgument('value', InputArgument::OPTIONAL);
+    }
+
+    /**
+     * Execute the command.
+     *
+     * @param \Symfony\Component\Console\Input\InputInterface $input
+     * @param \Symfony\Component\Console\Output\OutputInterface $output
+     *
+     * @return int
+     */
+    protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+
+        if (!file_exists(getcwd() . DIRECTORY_SEPARATOR . 'dcore.json')) {
+            $output->writeln('dcore.json file is not found!');
+            $output->writeln('Please run dcore commands in the project directory.');
+
+            return 0;
+        }
+
+
+        $formatterHelper = $this->getHelper('formatter');
+
+        $updateTypes = [
+            'core',
+            'addon-slug'
+        ];
+
+
+        if ($input->getArgument('type') === 'core') {
+            return $this->coreUpdater($input, $output);
+        }
+
+        $installedAddons = CoreManager::getAddonsSlug();
+        if ($input->getArgument('type') !== 'core' && (empty($input->getArgument('type')) || !in_array($input->getArgument('type'), $installedAddons))) {
+            $formattedBlock = $formatterHelper->formatBlock([
+                'Please enter a valid installed addons slug!',
+                '   Installed addons:',
+                '   ' . implode(' ,', $installedAddons)
+            ], 'error');
+            $output->writeln($formattedBlock);
+
+            return 1;
+        }
+
+
+        if ($input->getArgument('type') !== 'core') {
+            return $this->addonUpdater($input, $output);
+        }
+
+
+        $formattedBlock = $formatterHelper->formatBlock([
+            'Please enter a valid slug!',
+            '   Valid slugs:',
+            '   ' . implode(' ,', $updateTypes)
+        ], 'error');
+        $output->writeln($formattedBlock);
+
+        return 0;
+    }
+
+    private function coreUpdater(InputInterface $input, OutputInterface $output): int
+    {
+        // Helpers
+        $questionHelper = $this->getHelper('question');
+        $formatterHelper = $this->getHelper('formatter');
+
+        $filesQuestion = new ConfirmationQuestion('Do you want replace file? (Y/n) (default:n) : ', false);
+        $holdQuestion = new ConfirmationQuestion('Do you want the files that were not replaced to be stored in the "_NeedUpdate" folder? (Y/n) (default:Y) : ', true);
+
+        // Arguments
+        $version = $input->getArgument('value') ?? '';
+
+
+        $log = new Log();
+        $updater = new Updater($log);
+
+        $output->writeln('Downloading update package...');
+        $updater->cloneByVersion($version); // empty to get latest version
+
+        // Listing changed files
+        $changeList = $updater->getChangesList($version);
+
+        if (is_array($changeList) && !empty($changeList)) {
+            $formattedBlock = $formatterHelper->formatSection('Listing Files', 'List of files who changed/added.');
+            $output->writeln($formattedBlock);
+            foreach ($changeList as $item) {
+                $output->writeln($item);
+            }
+        } else {
+            $output->writeln('Your dcore is already up to date!');
 
-class UpdateCoreCommand extends Command {
-	/**
-	 * Configure the command options.
-	 *
-	 * @return void
-	 */
-	protected function configure () {
-		$this->setName('update')
-		     ->setDescription('Update toolbox')
-		     ->addArgument('type', InputArgument::REQUIRED)
-		     ->addArgument('value', InputArgument::OPTIONAL);
-	}
-
-	/**
-	 * Execute the command.
-	 *
-	 * @param \Symfony\Component\Console\Input\InputInterface   $input
-	 * @param \Symfony\Component\Console\Output\OutputInterface $output
-	 *
-	 * @return int
-	 */
-	protected function execute (InputInterface $input, OutputInterface $output) : int {
+            return 0;
+        }
+        $output->writeln(PHP_EOL . 'Please wait ...' . PHP_EOL);
+        sleep(2);
 
-		if ( !file_exists(getcwd() . DIRECTORY_SEPARATOR . 'dcore.json') ) {
-			$output->writeln('dcore.json file is not found!');
-			$output->writeln('Please run dcore commands in the project directory.');
+        $formattedBlock = $formatterHelper->formatSection('Let\'s update', 'Confirm files...');
+        $output->writeln($formattedBlock);
 
-			return 0;
-		}
-
-
-		$formatterHelper = $this->getHelper('formatter');
-
-		$updateTypes = [
-			'core',
-			'addon-slug'
-		];
-
+        $notReplacedFiles = [];
 
-		if ( $input->getArgument('type') === 'core' ) {
-			return $this->coreUpdater($input, $output);
-		}
-
-		$installedAddons = CoreManager::getAddonsSlug();
-		if ( $input->getArgument('type') !== 'core' && (empty($input->getArgument('type')) || !in_array($input->getArgument('type'), $installedAddons)) ) {
-			$formattedBlock = $formatterHelper->formatBlock([
-				'Please enter a valid installed addons slug!',
-				'   Installed addons:',
-				'   ' . implode(' ,', $installedAddons)
-			], 'error');
-			$output->writeln($formattedBlock);
-
-			return 1;
-		}
-
-
-		if ( $input->getArgument('type') !== 'core' ) {
-			return $this->addonUpdater($input, $output);
-		}
-
-
-		$formattedBlock = $formatterHelper->formatBlock([
-			'Please enter a valid slug!',
-			'   Valid slugs:',
-			'   ' . implode(' ,', $updateTypes)
-		], 'error');
-		$output->writeln($formattedBlock);
-
-		return 0;
-	}
-
-	private function coreUpdater (InputInterface $input, OutputInterface $output) : int {
-		// Helpers
-		$questionHelper  = $this->getHelper('question');
-		$formatterHelper = $this->getHelper('formatter');
-
-		$filesQuestion = new ConfirmationQuestion('Do you want replace file? (Y/n) (default:n) : ', false);
-		$holdQuestion  = new ConfirmationQuestion('Do you want the files that were not replaced to be stored in the "_NeedUpdate" folder? (Y/n) (default:Y) : ', true);
+        foreach ($changeList as $item) {
+            $output->writeln(PHP_EOL . '  -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-');
+            $output->writeln('  File: ' . $item);
 
-		// Arguments
-		$version = $input->getArgument('value') ?? '';
-
-
-		$log     = new Log();
-		$updater = new Updater($log);
-
-		$output->writeln('Downloading update package...');
-		$updater->cloneByVersion($version); // empty to get latest version
+            if ($questionHelper->ask($input, $output, $filesQuestion)) {
 
-		// Listing changed files
-		$changeList = $updater->getChangesList($version);
+                $updatePackageDir = $updater->updatePackageDir . DIRECTORY_SEPARATOR;
+                $updater->updateCopy($updatePackageDir . $item);
 
-		if ( is_array($changeList) && !empty($changeList) ) {
-			$formattedBlock = $formatterHelper->formatSection('Listing Files', 'List of files who changed/added.');
-			$output->writeln($formattedBlock);
-			foreach ( $changeList as $item ) {
-				$output->writeln($item);
-			}
-		} else {
-			$output->writeln('Your dcore is already up to date!');
+                $formattedBlock = $formatterHelper->formatBlock([$item, 'This file has been replaced!'], 'info');
 
-			return 0;
-		}
-		$output->writeln(PHP_EOL . 'Please wait ...' . PHP_EOL);
-		sleep(2);
+                // do copy file
+            } else {
+                $notReplacedFiles[] = $item;
+                $formattedBlock = $formatterHelper->formatBlock([
+                    $item,
+                    'You have stopped replacing this file!'
+                ], 'error');
+            }
+            $output->writeln($formattedBlock);
+        }
 
-		$formattedBlock = $formatterHelper->formatSection('Let\'s update', 'Confirm files...');
-		$output->writeln($formattedBlock);
+        // Move not replaced files
 
-		$notReplacedFiles = [];
+        $output->writeln(PHP_EOL . 'Please wait ...' . PHP_EOL);
+        sleep(1);
 
-		foreach ( $changeList as $item ) {
-			$output->writeln(PHP_EOL . '  -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-');
-			$output->writeln('  File: ' . $item);
+        if (!empty($notReplacedFiles) && $questionHelper->ask($input, $output, $holdQuestion)) {
+            foreach ($notReplacedFiles as $item) {
+                $updatePackageDir = $updater->updatePackageDir . DIRECTORY_SEPARATOR;
+                $updater->updateHold($updatePackageDir . $item);
+                $output->writeln('"' . $item . '"' . ' file moved to the _NeedUpdate folder.');
+            }
+        }
 
-			if ( $questionHelper->ask($input, $output, $filesQuestion) ) {
+        // deleting removed files
+        $removeList = $updater->getChangesList($version, 'removed');
 
-				$updatePackageDir = $updater->updatePackageDir . DIRECTORY_SEPARATOR;
-				$updater->updateCopy($updatePackageDir . $item);
+        if (is_array($removeList) && !empty($removeList)) {
+            $formattedBlock = $formatterHelper->formatSection('Deleting Files', 'List of files who removed.');
+            $output->writeln($formattedBlock);
+            foreach ($removeList as $item) {
+                Transfers::remove([getcwd() . DIRECTORY_SEPARATOR . $item]);
+                $output->writeln($item . ' removed!');
+            }
+        }
 
-				$formattedBlock = $formatterHelper->formatBlock([$item, 'This file has been replaced!'], 'info');
+        $newVersion = CoreManager::getCoreVersion(getcwd() . DIRECTORY_SEPARATOR . '.dcore' . DIRECTORY_SEPARATOR . 'dcore' . DIRECTORY_SEPARATOR . 'dcore.json');
+        CoreManager::setCoreVersion($newVersion);
 
-				// do copy file
-			} else {
-				$notReplacedFiles[] = $item;
-				$formattedBlock     = $formatterHelper->formatBlock([
-					$item,
-					'You have stopped replacing this file!'
-				], 'error');
-			}
-			$output->writeln($formattedBlock);
-		}
+        $output->writeln(PHP_EOL . 'Your template is updated successfully!');
 
-		// Move not replaced files
+        return 0;
+    }
 
-		$output->writeln(PHP_EOL . 'Please wait ...' . PHP_EOL);
-		sleep(1);
+    private function addonUpdater(InputInterface $input, OutputInterface $output): int
+    {
+        $formatterHelper = $this->getHelper('formatter');
+        $questionHelper = $this->getHelper('question');
 
-		if ( !empty($notReplacedFiles) && $questionHelper->ask($input, $output, $holdQuestion) ) {
-			foreach ( $notReplacedFiles as $item ) {
-				$updatePackageDir = $updater->updatePackageDir . DIRECTORY_SEPARATOR;
-				$updater->updateHold($updatePackageDir . $item);
-				$output->writeln('"' . $item . '"' . ' file moved to the _NeedUpdate folder.');
-			}
-		}
+        $version = $input->getArgument('value') ?? '';
+        $slug = $input->getArgument('type');
+        $license = CoreManager::getLicense();
 
-		// deleting removed files
-		$removeList = $updater->getChangesList($version, 'removed');
+        $currentVersion = CoreManager::getAddons();
+        $currentVersion = $currentVersion[$slug];
 
-		if ( is_array($removeList) && !empty($removeList) ) {
-			$formattedBlock = $formatterHelper->formatSection('Deleting Files', 'List of files who removed.');
-			$output->writeln($formattedBlock);
-			foreach ( $removeList as $item ) {
-				Transfers::remove([getcwd() . DIRECTORY_SEPARATOR . $item]);
-				$output->writeln($item . ' removed!');
-			}
-		}
 
-		$newVersion = CoreManager::getCoreVersion(getcwd() . DIRECTORY_SEPARATOR . '.dcore' . DIRECTORY_SEPARATOR . 'dcore' . DIRECTORY_SEPARATOR . 'dcore.json');
-		CoreManager::setCoreVersion($newVersion);
+        if (!empty($version) && version_compare($version, $currentVersion, '<=')) {
+            $formattedBlock = $formatterHelper->formatBlock([
+                'You can\'t downgrade addons!',
+            ], 'error');
+            $output->writeln($formattedBlock);
 
-		$output->writeln(PHP_EOL . 'Your template is updated successfully!');
+            return 0;
+        }
 
-		return 0;
-	}
 
-	private function addonUpdater (InputInterface $input, OutputInterface $output) : int {
-		$formatterHelper = $this->getHelper('formatter');
-		$questionHelper  = $this->getHelper('question');
+        if (empty($license)) {
+            $formattedBlock = $formatterHelper->formatBlock([
+                'Please install "license" addon from https://license.devingo.net before update any things!',
+            ], 'error');
+            $output->writeln($formattedBlock);
 
-		$version = $input->getArgument('value') ?? '';
-		$slug    = $input->getArgument('type');
-		$license = CoreManager::getLicense();
+            return 0;
+        }
 
-		$currentVersion = CoreManager::getAddons();
-		$currentVersion = $currentVersion[$slug];
 
+        $output->writeln('Getting the addon versions information...');
 
-		if ( !empty($version) && version_compare($version, $currentVersion, '<=') ) {
-			$formattedBlock = $formatterHelper->formatBlock([
-				'You can\'t downgrade addons!',
-			], 'error');
-			$output->writeln($formattedBlock);
+        $serverManager = new ServerManager($slug, $version, $license);
 
-			return 0;
-		}
+        $addonVersions = $serverManager->getAddonVersions();
+        if ($addonVersions['status'] === false) {
+            $formattedBlock = $formatterHelper->formatBlock([
+                $addonVersions['data'],
+            ], 'error');
+            $output->writeln($formattedBlock);
 
+            return 0;
+        }
 
-		if ( empty($license) ) {
-			$formattedBlock = $formatterHelper->formatBlock([
-				'Please install "license" addon from https://license.devingo.net before update any things!',
-			], 'error');
-			$output->writeln($formattedBlock);
+        if (!is_array($addonVersions['data']) || empty($addonVersions['data'])) {
+            $formattedBlock = $formatterHelper->formatBlock([
+                'There is not any update for this addon!',
+            ], 'error');
+            $output->writeln($formattedBlock);
 
-			return 0;
-		}
+            return 0;
+        }
 
-		$serverManager = new ServerManager($slug, $version, $license);
+        $versions = $addonVersions['data'];
 
-		$addonVersions = $serverManager->getAddonVersions();
-		if ( $addonVersions['status'] === false ) {
-			$formattedBlock = $formatterHelper->formatBlock([
-				$addonVersions['data'],
-			], 'error');
-			$output->writeln($formattedBlock);
 
-			return 0;
-		}
+        if (count($versions) === 1 && $versions[0]['version'] === $currentVersion) {
+            $formattedBlock = $formatterHelper->formatBlock([
+                'Your installed version is already updated!',
+            ], 'info');
+            $output->writeln($formattedBlock);
 
-		if ( !is_array($addonVersions['data']) || empty($addonVersions['data']) ) {
-			$formattedBlock = $formatterHelper->formatBlock([
-				'There is not any update for this addon!',
-			], 'error');
-			$output->writeln($formattedBlock);
+            return 0;
+        }
 
-			return 0;
-		}
+        $requiredUpdates = array_filter($versions, function ($item) use ($version, $currentVersion) {
+            return version_compare($item['version'], $currentVersion, '>') && (empty($version) || version_compare($item['version'], $version, '<='));
+        });
 
-		$versions = $addonVersions['data'];
 
+        if (count($requiredUpdates) > 0 && !empty($version)) {
+            $output->writeln(PHP_EOL . 'There are ' . count($requiredUpdates) . ' update/updates for update to version ' . $version . '!');
+        }
 
-		if ( count($versions) === 1 && $versions[0]['version'] === $currentVersion ) {
-			$formattedBlock = $formatterHelper->formatBlock([
-				'Your installed version is already updated!',
-			], 'info');
-			$output->writeln($formattedBlock);
+        if (count($requiredUpdates) > 0 && empty($version)) {
+            $output->writeln(PHP_EOL . 'There are ' . count($requiredUpdates) . ' update/updates!');
+        }
 
-			return 0;
-		}
+        if (empty($requiredUpdates)) {
+            $output->writeln('You are already updated!' . PHP_EOL);
+            return 0;
+        }else{
+            foreach ($requiredUpdates as $required_update) {
+                $output->writeln('  +' . $required_update['version']);
+            }
+            $output->writeln(PHP_EOL);
+        }
 
-		$requiredUpdates = array_filter($versions, function ($item) use ($version, $currentVersion) {
-			return version_compare($item['version'], $currentVersion, '>') && version_compare($item['version'], $version, '');
-		});
 
-		if ( count($requiredUpdates) > 1 && !empty($version) ) {
-			$output->writeln(PHP_EOL . 'There are ' . count($requiredUpdates) . ' updates for update to version ' . $version . '!');
-		}
+        foreach ($requiredUpdates as $required_update) {
+            $filesQuestion = new ConfirmationQuestion(sprintf('Do you want update to %s? (Y/n) (default:Y) : ', $required_update['version']), true);
 
+            if (count($requiredUpdates) > 1 && !$questionHelper->ask($input, $output, $filesQuestion)) {
+                $output->writeln(PHP_EOL . 'You have skipped the update process!');
 
-		$filesQuestion = new ConfirmationQuestion('Do you want replace file? (Y/n) (default:n) : ', true);
+                return 0;
+            }
 
-		foreach ( $requiredUpdates as $required_update ) {
-			if ( count($requiredUpdates) > 1 && !$questionHelper->ask($input, $output, $filesQuestion) ) {
-				$output->writeln(PHP_EOL . 'You have skipped the update process!');
+            $nextVersion = $required_update['version'];
 
-				return 0;
-			}
+            InstallCommand::addonInstaller($this, $input, $output, $slug . '@' . $nextVersion, $license, true);
+        }
 
-			$nextVersion = $required_update['version'];
 
-			InstallCommand::addonInstaller($this, $input, $output, $slug . '@' . $nextVersion, $license,true);
-		}
+        $output->writeln(PHP_EOL . 'Running composer dump-autoload ...');
 
+        $composerProcess = new Process(['composer', 'dump-autoload']);
+        try {
+            $composerProcess->mustRun();
+            $output->writeln($composerProcess->getOutput());
+        } catch ( ProcessFailedException $exception ) {
+            $output->writeln(PHP_EOL . 'Please run "composer dump-autoload" as manually!');
+        }
 
-		return 0;
-	}
+
+        $output->writeln(PHP_EOL . 'Running dcore cache ...');
+
+        $composerProcess = new Process(['dcore', 'cache']);
+        try {
+            $composerProcess->mustRun();
+            $output->writeln($composerProcess->getOutput());
+        } catch ( ProcessFailedException $exception ) {
+            $output->writeln(PHP_EOL . 'Please run "dcore cache" as manually!');
+        }
+
+        return 0;
+    }
 }
