@@ -47,9 +47,7 @@ class NewCommand extends Command {
 
 		try {
 			$process->mustRun();
-
 			echo $process->getOutput();
-
 
 			$removeProcess = new Process(['rm', '-rf', './' . $directoryName . '/.git/']);
 			$removeProcess->run();
@@ -58,7 +56,6 @@ class NewCommand extends Command {
 			$removeProcess = new Process(['rm', '-rf', './' . $directoryName . '/.gitignore']);
 			$removeProcess->run();
 			echo $removeProcess->getOutput();
-
 
 			$output->writeln('Project is created successfully!');
 			$output->writeln('');

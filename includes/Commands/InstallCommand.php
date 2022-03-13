@@ -29,6 +29,7 @@ class InstallCommand extends Command
 {
     public function __destruct()
     {
+        Transfers::remove([getcwd() . DIRECTORY_SEPARATOR . '.dcore']);
         $removeProcess = new Process(['rm', '-rf', './.dcore']);
         $removeProcess->run();
     }
@@ -202,9 +203,10 @@ class InstallCommand extends Command
                     }
                     continue;
                 }
-                if (isset($getInstalledAddons[$slug]) && $getInstalledAddons[$slug] === $addOnversion) {
+                if (isset($getInstalledAddons[$slug]) && ($getInstalledAddons[$slug] === $addOnversion || empty($addOnversion))) {
                     continue;
                 }
+
                 $requiredAddons[$slug] = [
                     'version' => empty($addOnversion) ? '' : $addOnversion,
                     'update' => isset($getInstalledAddons[$slug])
@@ -413,6 +415,18 @@ class InstallCommand extends Command
             $output->writeln($composerProcess->getOutput());
         } catch (ProcessFailedException $exception) {
             $output->writeln(PHP_EOL . 'Please run "composer dump-autoload" as manually!');
+        }
+
+
+
+        $output->writeln(PHP_EOL . 'Running dcore cache ...');
+
+        $composerProcess = new Process(['dcore', 'cache']);
+        try {
+            $composerProcess->mustRun();
+            $output->writeln($composerProcess->getOutput());
+        } catch ( ProcessFailedException $exception ) {
+            $output->writeln(PHP_EOL . 'Please run "dcore cache" as manually!');
         }
 
         return 0;

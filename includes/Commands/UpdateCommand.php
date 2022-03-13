@@ -15,7 +15,7 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
-class UpdateCoreCommand extends Command
+class UpdateCommand extends Command
 {
     /**
      * Configure the command options.
@@ -28,6 +28,11 @@ class UpdateCoreCommand extends Command
             ->setDescription('Update toolbox')
             ->addArgument('type', InputArgument::REQUIRED)
             ->addArgument('value', InputArgument::OPTIONAL);
+    }
+
+    public function __destruct()
+    {
+        Transfers::remove([getcwd() . DIRECTORY_SEPARATOR . '.dcore']);
     }
 
     /**
@@ -223,7 +228,6 @@ class UpdateCoreCommand extends Command
         $serverManager = new ServerManager($slug, $version, $license);
 
         $addonVersions = $serverManager->getAddonVersions();
-
         if ($addonVersions['status'] === false) {
             $formattedBlock = $formatterHelper->formatBlock([
                 $addonVersions['data'],
