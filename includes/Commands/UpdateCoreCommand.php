@@ -223,6 +223,7 @@ class UpdateCoreCommand extends Command
         $serverManager = new ServerManager($slug, $version, $license);
 
         $addonVersions = $serverManager->getAddonVersions();
+
         if ($addonVersions['status'] === false) {
             $formattedBlock = $formatterHelper->formatBlock([
                 $addonVersions['data'],
@@ -253,44 +254,44 @@ class UpdateCoreCommand extends Command
             return 0;
         }
 
-        $requiredUpdates = array_filter($versions, function ($item) use ($version, $currentVersion) {
-            return version_compare($item['version'], $currentVersion, '>') && (empty($version) || version_compare($item['version'], $version, '<='));
-        });
-
-
-        if (count($requiredUpdates) > 0 && !empty($version)) {
-            $output->writeln(PHP_EOL . 'There are ' . count($requiredUpdates) . ' update/updates for update to version ' . $version . '!');
+        $canUpdate = false;
+        foreach ($versions as $index => $update){
+            if ($version === $update['version']){
+                $canUpdate = true;
+                break;
+            }
+            if ($index === array_key_last($versions)){
+                $version = $update['version'];
+                $canUpdate = true;
+            }
         }
 
-        if (count($requiredUpdates) > 0 && empty($version)) {
-            $output->writeln(PHP_EOL . 'There are ' . count($requiredUpdates) . ' update/updates!');
-        }
 
-        if (empty($requiredUpdates)) {
-            $output->writeln('You are already updated!' . PHP_EOL);
+
+
+
+        if (version_compare($version, $currentVersion, '<=')) {
+            $formattedBlock = $formatterHelper->formatBlock([
+                'Your installed version is already updated!',
+            ], 'info');
+            $output->writeln($formattedBlock);
+
             return 0;
+        }
+
+        if ($canUpdate) {
+            $formattedBlock = $formatterHelper->formatBlock([
+                sprintf('Updating %s addon to version %s!',$slug,$version),
+            ], 'info');
+            $output->writeln($formattedBlock);
+            InstallCommand::addonInstaller($this, $input, $output, $slug . '@' . $version, $license, true);
         }else{
-            foreach ($requiredUpdates as $required_update) {
-                $output->writeln('  +' . $required_update['version']);
-            }
-            $output->writeln(PHP_EOL);
+            $formattedBlock = $formatterHelper->formatBlock([
+                'Required version not found!',
+            ], 'error');
+            $output->writeln($formattedBlock);
+            return 0;
         }
-
-
-        foreach ($requiredUpdates as $required_update) {
-            $filesQuestion = new ConfirmationQuestion(sprintf('Do you want update to %s? (Y/n) (default:Y) : ', $required_update['version']), true);
-
-            if (count($requiredUpdates) > 1 && !$questionHelper->ask($input, $output, $filesQuestion)) {
-                $output->writeln(PHP_EOL . 'You have skipped the update process!');
-
-                return 0;
-            }
-
-            $nextVersion = $required_update['version'];
-
-            InstallCommand::addonInstaller($this, $input, $output, $slug . '@' . $nextVersion, $license, true);
-        }
-
 
         $output->writeln(PHP_EOL . 'Running composer dump-autoload ...');
 

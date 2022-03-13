@@ -102,7 +102,7 @@ class InstallCommand extends Command
             return 0;
         }
 
-        $addonsManifest = eval(str_replace('<?php','',file_get_contents($addonsManifestPath)));
+        $addonsManifest = eval(str_replace('<?php', '', file_get_contents($addonsManifestPath)));
 
         if (!is_array($addonsManifest)) {
             $output->writeln('Addons manifest is broken!');
@@ -172,6 +172,72 @@ class InstallCommand extends Command
 
             return 1;
         }
+
+
+        $addonManifest = CoreManager::getAddonManifest($addonDir);
+
+        $output->writeln('');
+        if (isset($addonManifest['name'])) {
+            $output->writeln(sprintf('<fg=yellow>Addon Name:</> <fg=green>%s</>', $addonManifest['name']));
+        }
+        if (isset($addonManifest['author'])) {
+            $output->writeln(sprintf('<fg=yellow>Author:</> <fg=green>%s</>', $addonManifest['author']));
+        }
+        if (isset($addonManifest['version'])) {
+            $output->writeln(sprintf('<fg=yellow>Version:</> <fg=green>%s</>', $addonManifest['version']));
+        }
+        $output->writeln('');
+
+
+        $getInstalledAddons = CoreManager::getAddons();
+        $getRequiresAddons = $addonManifest['requires'] ?? [];
+
+        $requiredAddons = [];
+        if (!empty($getRequiresAddons)) {
+            foreach ($getRequiresAddons as $slug => $addOnversion) {
+                if ($slug === 'dcore') {
+                    if (!empty($addOnversion) && $addOnversion !== CoreManager::getCoreVersion()) {
+                        $output->writeln(PHP_EOL . 'This addon requires another version of dcore, please update/downgrade dcore to version ' . $addOnversion);
+                        return 0;
+                    }
+                    continue;
+                }
+                if (isset($getInstalledAddons[$slug]) && $getInstalledAddons[$slug] === $addOnversion) {
+                    continue;
+                }
+                $requiredAddons[$slug] = [
+                    'version' => empty($addOnversion) ? '' : $addOnversion,
+                    'update' => isset($getInstalledAddons[$slug])
+                ];
+            }
+        }
+
+        if (!empty($requiredAddons)) {
+            $output->writeln(PHP_EOL . '<fg=yellow>The addon requires some another addons:</>');
+            foreach ($requiredAddons as $slug => $require) {
+                $output->writeln('  <fg=red>+ ' . $slug . '@' . $require['version'] . '</>');
+            }
+            $output->writeln(PHP_EOL);
+
+
+            foreach ($requiredAddons as $slug => $require) {
+                $filesQuestion = new ConfirmationQuestion(sprintf(
+                    'Before installing version %s of %s addon, you need to upgrade your %s addon to version %s.' . PHP_EOL . 'Do you want to perform this operation? (Y/n) (default:Y) : ',
+                    $version,
+                    $addonSlug,
+                    $slug,
+                    $require['version']
+                ), true);
+                if (!$questionHelper->ask($input, $output, $filesQuestion)) {
+                    return 0;
+                }
+                $output->writeln('     <fg=green> >>>Installing ' . $slug . ' version ' . $require['version'] . ':</>');
+                self::addonInstaller($selfObj, $input, $output, $slug . '@' . $require['version'], $license, $require['update']);
+                $output->writeln('');
+            }
+            $output->writeln('');
+        }
+
 
         $log = new Log();
         $updater = new Updater($log);
@@ -291,15 +357,47 @@ class InstallCommand extends Command
             file_put_contents($addonsManifestPath, '<?php' . PHP_EOL . 'return ' . var_export($addonsManifest, true) . ';');
         }
 
+        $addOnDeletedFiles = $addonManifest['removed'] ?? [];
+        if (is_array($addOnDeletedFiles) && !empty($addOnDeletedFiles)) {
+            $filesQuestion = new ConfirmationQuestion('Do you want to delete it in your project as well? (Y/n) (default:Y) : ', true);
+
+            $output->writeln(PHP_EOL . PHP_EOL . 'Removing extra files:');
+            sleep(2);
+
+            $progressBar = new ProgressBar($output, count($addOnDeletedFiles));
+            $progressBar->start();
+
+            foreach ($addOnDeletedFiles as $deletedFile) {
+                $fileRealPath = getcwd() . DIRECTORY_SEPARATOR . $deletedFile;
+                if (file_exists($fileRealPath)) {
+                    $output->writeln(PHP_EOL);
+                    $formattedBlock = $formatterHelper->formatBlock([
+                        $deletedFile,
+                        'This file has been removed in the installation version!'
+                    ], 'error');
+
+                    $output->writeln($formattedBlock);
+                    $progressBar->advance();
+                    $output->writeln(PHP_EOL);
+                    if (!$questionHelper->ask($input, $output, $filesQuestion)) {
+                        continue;
+                    }
+
+                    // Remove file
+                    Transfers::remove([$fileRealPath]);
+
+                    usleep(500);
+                }
+            }
+            $progressBar->finish();
+        }
+
 
         $output->writeln(PHP_EOL . PHP_EOL);
         $formattedBlock = $formatterHelper->formatBlock([
-            $update ? 'The addon is updated to ' . $version . '!' : 'The addon is installed successfully!'
+            $update ? 'The ' . $addonSlug . ' addon is updated to ' . $version . '!' : 'The ' . $addonSlug . ' addon is installed successfully!'
         ], 'info');
         $output->writeln($formattedBlock);
-
-
-        $addonManifest = CoreManager::getAddonManifest($addonDir);
 
         CoreManager::setAddon($addonSlug, $addonManifest['version'] ?? '');
 
