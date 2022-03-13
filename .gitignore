@@ -1,3 +1,6 @@
-/vendor/
 /.idea/
-.gitignore
+/vendor
+/logs
+composer.lock
+phpunit.xml
+.phpunit.result.cache
