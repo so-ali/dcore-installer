@@ -395,6 +395,28 @@ class InstallCommand extends Command
         }
 
 
+        $addOnMovedFiles = $addonManifest['moved'] ?? [];
+        if (is_array($addOnMovedFiles) && !empty($addOnMovedFiles)) {
+
+            $output->writeln(PHP_EOL . PHP_EOL . 'Moving some files:');
+            sleep(2);
+
+            $progressBar = new ProgressBar($output, count($addOnMovedFiles));
+            $progressBar->start();
+
+            foreach ($addOnMovedFiles as $oldPath => $newPath) {
+                $oldRealPath = getcwd() . DIRECTORY_SEPARATOR . $oldPath;
+                $newRealPath = getcwd() . DIRECTORY_SEPARATOR . $newPath;
+                if (file_exists($oldRealPath)){
+                    Transfers::copy([$oldRealPath=>$newRealPath],true);
+                    Transfers::remove([$oldRealPath]);
+                }
+                $progressBar->advance();
+                usleep(500);
+            }
+            $progressBar->finish();
+        }
+
         $output->writeln(PHP_EOL . PHP_EOL);
         $formattedBlock = $formatterHelper->formatBlock([
             $update ? 'The ' . $addonSlug . ' addon is updated to ' . $version . '!' : 'The ' . $addonSlug . ' addon is installed successfully!'
