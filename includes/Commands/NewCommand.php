@@ -2,6 +2,7 @@
 
 namespace Devingo\Installer\Console\Commands;
 
+use Devingo\Installer\Console\Actions\Transfers;
 use Devingo\Installer\Console\Log;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -39,7 +40,7 @@ class NewCommand extends Command {
 			$directoryName = $parsedName;
 		}
 
-		$process = new Process(['git', 'clone', 'git@github.com:devingo-net/dcore.git', $directoryName]);
+		$process = new Process(['git', 'clone', 'https://github.com/devingo-net/dcore.git', $directoryName]);
 		$process->setTimeout(30000);
 		$output->writeln('Please wait, creating new project...');
 
@@ -49,13 +50,9 @@ class NewCommand extends Command {
 			$process->mustRun();
 			echo $process->getOutput();
 
-			$removeProcess = new Process(['rm', '-rf', './' . $directoryName . '/.git/']);
-			$removeProcess->run();
-			echo $removeProcess->getOutput();
-
-			$removeProcess = new Process(['rm', '-rf', './' . $directoryName . '/.gitignore']);
-			$removeProcess->run();
-			echo $removeProcess->getOutput();
+            sleep(1);
+			Transfers::remove([getcwd() . DIRECTORY_SEPARATOR . $directoryName . '/.git/']);
+			Transfers::remove([getcwd() . DIRECTORY_SEPARATOR . $directoryName . '/.gitignore']);
 
 			$output->writeln('Project is created successfully!');
 			$output->writeln('');

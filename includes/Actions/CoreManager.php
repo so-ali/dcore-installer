@@ -43,11 +43,25 @@ class CoreManager {
 		self::setDCoreFileContent($configs, $dcorePath);
 	}
 
-	public static function getCoreVersion (string $dcorePath = '') {
-		$dcoreConfigs = self::getDCoreFileContent($dcorePath);
+    public static function getCoreVersion (string $dcorePath = '') {
+        $dcoreConfigs = self::getDCoreFileContent($dcorePath);
 
-		return $dcoreConfigs['version'] ?? 'unknown';
-	}
+        return $dcoreConfigs['version'] ?? 'unknown';
+    }
+
+    public static function setCoreVersionTag (string $version, string $dcorePath = '') : void {
+        $configs = self::getDCoreFileContent($dcorePath);
+
+        $configs['version-tag'] = $version;
+
+        self::setDCoreFileContent($configs, $dcorePath);
+    }
+
+    public static function getCoreVersionTag (string $dcorePath = '') {
+        $dcoreConfigs = self::getDCoreFileContent($dcorePath);
+
+        return $dcoreConfigs['version-tag'] ?? 'unknown';
+    }
 
 	public static function getAddons (string $dcorePath = '') : array {
 		$dcoreConfigs = self::getDCoreFileContent($dcorePath);

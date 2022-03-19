@@ -38,8 +38,8 @@ class UpdateCommand extends Command
     /**
      * Execute the command.
      *
-     * @param \Symfony\Component\Console\Input\InputInterface $input
-     * @param \Symfony\Component\Console\Output\OutputInterface $output
+     * @param InputInterface $input
+     * @param OutputInterface $output
      *
      * @return int
      */
@@ -111,7 +111,7 @@ class UpdateCommand extends Command
         $updater = new Updater($log);
 
         $output->writeln('Downloading update package...');
-        $updater->cloneByVersion($version); // empty to get latest version
+        $updater->cloneByVersion($version);
 
         // Listing changed files
         $changeList = $updater->getChangesList($version);
@@ -139,14 +139,16 @@ class UpdateCommand extends Command
             $output->writeln(PHP_EOL . '  -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-');
             $output->writeln('  File: ' . $item);
 
-            if ($questionHelper->ask($input, $output, $filesQuestion)) {
+            $updatePackageDir = $updater->updatePackageDir . DIRECTORY_SEPARATOR;
 
-                $updatePackageDir = $updater->updatePackageDir . DIRECTORY_SEPARATOR;
+            if ( (file_exists(getcwd() . DIRECTORY_SEPARATOR . $item)
+                    && sha1_file($updatePackageDir . $item) === sha1_file(getcwd() . DIRECTORY_SEPARATOR . $item)
+                )
+                || $questionHelper->ask($input, $output, $filesQuestion)) {
+
                 $updater->updateCopy($updatePackageDir . $item);
 
                 $formattedBlock = $formatterHelper->formatBlock([$item, 'This file has been replaced!'], 'info');
-
-                // do copy file
             } else {
                 $notReplacedFiles[] = $item;
                 $formattedBlock = $formatterHelper->formatBlock([
@@ -181,9 +183,12 @@ class UpdateCommand extends Command
                 $output->writeln($item . ' removed!');
             }
         }
-
-        $newVersion = CoreManager::getCoreVersion(getcwd() . DIRECTORY_SEPARATOR . '.dcore' . DIRECTORY_SEPARATOR . 'dcore' . DIRECTORY_SEPARATOR . 'dcore.json');
+        $updaterPackageDcorePath = getcwd() . DIRECTORY_SEPARATOR . '.dcore' . DIRECTORY_SEPARATOR . 'update' . DIRECTORY_SEPARATOR . 'dcore.json';
+        $newVersion = CoreManager::getCoreVersion($updaterPackageDcorePath);
         CoreManager::setCoreVersion($newVersion);
+
+        $newVersionTag = CoreManager::getCoreVersionTag($updaterPackageDcorePath);
+        CoreManager::setCoreVersionTag($newVersionTag);
 
         $output->writeln(PHP_EOL . 'Your template is updated successfully!');
 
