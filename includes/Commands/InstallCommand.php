@@ -254,7 +254,7 @@ class InstallCommand extends Command
 
             $progressBar = new ProgressBar($output, count($addOnFilesList));
             $progressBar->start();
-            foreach ($addOnFilesList as $item) {
+            foreach ($addOnFilesList as $key => $item) {
                 $itemPath = str_replace($addonDir, '', $item);
                 $targetPath = getcwd() . DIRECTORY_SEPARATOR . ltrim($itemPath, DIRECTORY_SEPARATOR . 'data');
 
@@ -267,7 +267,7 @@ class InstallCommand extends Command
 
                     $output->writeln($formattedBlock);
                     if (!$questionHelper->ask($input, $output, $filesQuestion)) {
-                        return 0;
+                        unset($addOnFilesList[$key]);
                     }
                 }
 

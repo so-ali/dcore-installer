@@ -230,6 +230,21 @@ class Cache {
 		}
 
 
+        $shortcodesValues = $configJson['shortcodes'] ?? [];
+        if (isset($configJson['shortcodes'])){
+            unset($configJson['shortcodes']);
+        }
+
+        $styleApply = $configJson['styleApply'] ?? [];
+        if (isset($configJson['styleApply'])){
+            unset($configJson['styleApply']);
+        }
+
+        $fontApply = $configJson['fontApply'] ?? [];
+        if (isset($configJson['fontApply'])){
+            unset($configJson['fontApply']);
+        }
+
 		$content = '<?php
 /**
  * Cached configs
@@ -242,10 +257,13 @@ class Cache {
 namespace DCore;
 
 class Configs {
-    static $configJSON = ' . self::arrayToString($configJson) . ';
-    static $shortcodes = ' . self::arrayToString($shortcodes) . ';
-    static $globalCards = ' . self::arrayToString($globalCards) . ';
-    static $fonts = ' . self::arrayToString($fonts) . ';
+    public static function getConfigJSON(){ return ' . self::arrayToString($configJson) . '; }
+    public static function getShortcodesValues(){ return ' . self::arrayToString($shortcodesValues) . '; }
+    public static function getStyleApply(){ return ' . self::arrayToString($styleApply) . '; }
+    public static function getFontApply(){ return ' . self::arrayToString($fontApply) . '; }
+    public static function getShortcodes(){ return ' . self::arrayToString($shortcodes) . '; }
+    public static function getGlobalCards(){ return ' . self::arrayToString($globalCards) . '; }
+    public static function getFonts(){ return ' . self::arrayToString($fonts) . '; }
 }
 ';
 		fwrite($file, $content);
