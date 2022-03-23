@@ -51,7 +51,8 @@ class Transfers
                         @unlink($file);
                     }
                 }
-            } catch (\Exception $exception) {}
+            } catch (\Exception $exception) {
+            }
         }
     }
 
@@ -87,8 +88,8 @@ class Transfers
             $folder = '';
             foreach ($toDirectories as $directory) {
                 $folder .= $directory . DIRECTORY_SEPARATOR;
-                if (!$filesystem->exists($folder)) {
-                    $filesystem->mkdir($folder);
+                if (!$filesystem->exists(getcwd() . $folder)) {
+                    $filesystem->mkdir(getcwd() . $folder);
                 }
             }
         }
